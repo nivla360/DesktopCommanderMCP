@@ -25,9 +25,14 @@ import {
   GetFileInfoArgsSchema,
   EditBlockArgsSchema,
   SearchCodeArgsSchema,
-} from './tools/schemas.js';
+  // Git schemas
+  IsGitRepositoryArgsSchema,
+  CreateSnapshotArgsSchema,
+  RevertFileArgsSchema,
+  GetFileHistoryArgsSchema,
+} from "./tools/schemas.js";
 
-import { VERSION } from './version.js';
+import { VERSION } from "./version.js";
 import { capture } from "./utils.js";
 
 export const server = new Server(
@@ -38,10 +43,10 @@ export const server = new Server(
   {
     capabilities: {
       tools: {},
-      resources: {},  // Add empty resources capability
-      prompts: {},    // Add empty prompts capability
+      resources: {}, // Add empty resources capability
+      prompts: {}, // Add empty prompts capability
     },
-  },
+  }
 );
 
 // Add handler for resources/list method
@@ -72,20 +77,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "read_output",
-        description:
-          "Read new output from a running terminal session.",
+        description: "Read new output from a running terminal session.",
         inputSchema: zodToJsonSchema(ReadOutputArgsSchema),
       },
       {
         name: "force_terminate",
-        description:
-          "Force terminate a running terminal session.",
+        description: "Force terminate a running terminal session.",
         inputSchema: zodToJsonSchema(ForceTerminateArgsSchema),
       },
       {
         name: "list_sessions",
-        description:
-          "List all active terminal sessions.",
+        description: "List all active terminal sessions.",
         inputSchema: zodToJsonSchema(ListSessionsArgsSchema),
       },
       {
@@ -120,8 +122,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_blocked_commands",
-        description:
-          "List all currently blocked commands.",
+        description: "List all currently blocked commands.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -209,7 +210,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "list_allowed_directories",
-        description: 
+        description:
           "Returns the list of directories that this server is allowed to access.",
         inputSchema: {
           type: "object",
@@ -220,106 +221,159 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "edit_block",
         description:
-            "Apply surgical text replacements to files. Best for small changes (<20% of file size). " +
-            "Call repeatedly to change multiple blocks. Will verify changes after application. " +
-            "Format:\nfilepath\n<<<<<<< SEARCH\ncontent to find\n=======\nnew content\n>>>>>>> REPLACE",
+          "Apply surgical text replacements to files. Best for small changes (<20% of file size). " +
+          "Call repeatedly to change multiple blocks. Will verify changes after application. " +
+          "Format:\nfilepath\n<<<<<<< SEARCH\ncontent to find\n=======\nnew content\n>>>>>>> REPLACE",
         inputSchema: zodToJsonSchema(EditBlockArgsSchema),
+      },
+      // Git tools
+      {
+        name: "is_git_repository",
+        description: "Check if a path is inside a git repository.",
+        inputSchema: zodToJsonSchema(IsGitRepositoryArgsSchema),
+      },
+      {
+        name: "create_snapshot",
+        description:
+          "Create a git commit snapshot of the current state of a file.",
+        inputSchema: zodToJsonSchema(CreateSnapshotArgsSchema),
+      },
+      {
+        name: "revert_file",
+        description:
+          "Revert a file to a previous git commit state. When revertAllFiles is true, reverts all files changed in the commit.",
+        inputSchema: zodToJsonSchema(RevertFileArgsSchema),
+      },
+      {
+        name: "get_file_history",
+        description: "Get the git commit history for a file.",
+        inputSchema: zodToJsonSchema(GetFileHistoryArgsSchema),
+      },
+      {
+        name: "force_create_snapshots",
+        description:
+          "Force the creation of Git snapshots for all pending file changes.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
       },
     ],
   };
 });
 
-import * as handlers from './handlers/index.js';
-import { ServerResult } from './types.js';
+import * as handlers from "./handlers/index.js";
+import { ServerResult } from "./types.js";
 
-server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest): Promise<ServerResult> => {
-  try {
-    const { name, arguments: args } = request.params;
-    capture('server_call_tool');
-    // Add a single dynamic capture for the specific tool
-    capture('server_' + name);
-    
-    // Using a more structured approach with dedicated handlers
-    switch (name) {
-      // Terminal tools
-      case "execute_command":
-        return handlers.handleExecuteCommand(args);
-        
-      case "read_output":
-        return handlers.handleReadOutput(args);
-        
-      case "force_terminate":
-        return handlers.handleForceTerminate(args);
-        
-      case "list_sessions":
-        return handlers.handleListSessions();
-        
-      // Process tools
-      case "list_processes":
-        return handlers.handleListProcesses();
-        
-      case "kill_process":
-        return handlers.handleKillProcess(args);
-        
-      // Command management tools
-      case "block_command":
-        return handlers.handleBlockCommand(args);
-        
-      case "unblock_command":
-        return handlers.handleUnblockCommand(args);
-        
-      case "list_blocked_commands":
-        return handlers.handleListBlockedCommands();
-        
-      // Filesystem tools
-      case "read_file":
-        return handlers.handleReadFile(args);
-        
-      case "read_multiple_files":
-        return handlers.handleReadMultipleFiles(args);
-        
-      case "write_file":
-        return handlers.handleWriteFile(args);
-        
-      case "create_directory":
-        return handlers.handleCreateDirectory(args);
-        
-      case "list_directory":
-        return handlers.handleListDirectory(args);
-        
-      case "move_file":
-        return handlers.handleMoveFile(args);
-        
-      case "search_files":
-        return handlers.handleSearchFiles(args);
-        
-      case "search_code":
-        return handlers.handleSearchCode(args);
-        
-      case "get_file_info":
-        return handlers.handleGetFileInfo(args);
-        
-      case "list_allowed_directories":
-        return handlers.handleListAllowedDirectories();
-        
-      case "edit_block":
-        return handlers.handleEditBlock(args);
-        
-      default:
-        capture('server_unknown_tool', { name });
-        return {
-          content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
-          isError: true,
-        };
+server.setRequestHandler(
+  CallToolRequestSchema,
+  async (request: CallToolRequest): Promise<ServerResult> => {
+    try {
+      const { name, arguments: args } = request.params;
+      capture("server_call_tool");
+      // Add a single dynamic capture for the specific tool
+      capture("server_" + name);
+
+      // Using a more structured approach with dedicated handlers
+      switch (name) {
+        // Terminal tools
+        case "execute_command":
+          return handlers.handleExecuteCommand(args);
+
+        case "read_output":
+          return handlers.handleReadOutput(args);
+
+        case "force_terminate":
+          return handlers.handleForceTerminate(args);
+
+        case "list_sessions":
+          return handlers.handleListSessions();
+
+        // Process tools
+        case "list_processes":
+          return handlers.handleListProcesses();
+
+        case "kill_process":
+          return handlers.handleKillProcess(args);
+
+        // Command management tools
+        case "block_command":
+          return handlers.handleBlockCommand(args);
+
+        case "unblock_command":
+          return handlers.handleUnblockCommand(args);
+
+        case "list_blocked_commands":
+          return handlers.handleListBlockedCommands();
+
+        // Filesystem tools
+        case "read_file":
+          return handlers.handleReadFile(args);
+
+        case "read_multiple_files":
+          return handlers.handleReadMultipleFiles(args);
+
+        case "write_file":
+          return handlers.handleWriteFile(args);
+
+        case "create_directory":
+          return handlers.handleCreateDirectory(args);
+
+        case "list_directory":
+          return handlers.handleListDirectory(args);
+
+        case "move_file":
+          return handlers.handleMoveFile(args);
+
+        case "search_files":
+          return handlers.handleSearchFiles(args);
+
+        case "search_code":
+          return handlers.handleSearchCode(args);
+
+        case "get_file_info":
+          return handlers.handleGetFileInfo(args);
+
+        case "list_allowed_directories":
+          return handlers.handleListAllowedDirectories();
+
+        case "edit_block":
+          return handlers.handleEditBlock(args);
+
+        // Git tools
+        case "is_git_repository":
+          return handlers.handleIsGitRepository(args);
+
+        case "create_snapshot":
+          return handlers.handleCreateSnapshot(args);
+
+        case "revert_file":
+          return handlers.handleRevertFile(args);
+
+        case "get_file_history":
+          return handlers.handleGetFileHistory(args);
+
+        case "force_create_snapshots":
+          return handlers.handleForceCreateSnapshots(args);
+
+        default:
+          capture("server_unknown_tool", { name });
+          return {
+            content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
+            isError: true,
+          };
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      capture("server_request_error", {
+        error: errorMessage,
+      });
+      return {
+        content: [{ type: "text", text: `Error: ${errorMessage}` }],
+        isError: true,
+      };
     }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    capture('server_request_error', {
-        error: errorMessage
-    });
-    return {
-      content: [{ type: "text", text: `Error: ${errorMessage}` }],
-      isError: true,
-    };
   }
-});
+);

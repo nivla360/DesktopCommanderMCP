@@ -82,3 +82,24 @@ export const SearchCodeArgsSchema = z.object({
 export const EditBlockArgsSchema = z.object({
   blockContent: z.string(),
 });
+
+// Git tools schemas
+export const IsGitRepositoryArgsSchema = z.object({
+  path: z.string(),
+});
+
+export const CreateSnapshotArgsSchema = z.object({
+  path: z.string(),
+  message: z.string(),
+});
+
+export const RevertFileArgsSchema = z.object({
+  path: z.string(),
+  commitHash: z.string(),
+  revertAllFiles: z.boolean().optional().default(false),
+});
+
+export const GetFileHistoryArgsSchema = z.object({
+  path: z.string(),
+  maxCount: z.number().optional(),
+});
