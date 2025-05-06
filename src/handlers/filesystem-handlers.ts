@@ -168,28 +168,20 @@ export async function handleWriteFile(args: unknown): Promise<ServerResult> {
   try {
     const parsed = WriteFileArgsSchema.parse(args);
 
-    // Add this: Check if file exists first
+    // Use fs.stat to check if file exists instead of reading its content
     let fileExists = false;
-    let currentContent = "";
     try {
-      const result = await readFile(parsed.path);
+      const { stat } = await import("fs/promises");
+      await stat(parsed.path);
       fileExists = true;
-      currentContent = typeof result === "string" ? result : result.content;
-    } catch (error) {
-      // File doesn't exist yet, that's okay
-      fileExists = false;
-    }
-
-    // If file exists, track for batch snapshot
-    if (fileExists) {
       console.log(`File ${parsed.path} exists and will be updated.`);
 
       // Track the file for batch snapshot
       await trackFileChange(parsed.path);
+    } catch (error) {
+      // File doesn't exist yet, that's okay
+      fileExists = false;
     }
-
-    // Note: We no longer need to call createSnapshotsForPendingChanges() here
-    // as it will be triggered automatically after the batch timeout
 
     await writeFile(parsed.path, parsed.content);
 

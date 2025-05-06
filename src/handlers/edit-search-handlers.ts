@@ -32,10 +32,22 @@ export async function handleEditBlock(args: unknown): Promise<ServerResult> {
     return createErrorResponse(error);
   }
 
-  // Add this: Read current file content before applying changes
+  // Read current file content before applying changes to understand its current state
+  let currentContent: string;
   try {
-    await readFile(filePath, false);
-    // File exists, continue with edit
+    const result = await readFile(filePath);
+    currentContent = typeof result === "string" ? result : result.content;
+    console.log(
+      `[DEBUG] Successfully read entire file: ${filePath} (${currentContent.length} characters)`
+    );
+
+    // Log the first few lines to help with debugging
+    const preview = currentContent.split("\n").slice(0, 3).join("\n");
+    console.log(
+      `[DEBUG] File preview: ${preview}${
+        currentContent.split("\n").length > 3 ? "..." : ""
+      }`
+    );
   } catch (error) {
     return createErrorResponse(`File ${filePath} could not be read: ${error}`);
   }

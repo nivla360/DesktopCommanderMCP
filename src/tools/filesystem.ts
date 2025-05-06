@@ -218,7 +218,7 @@ export async function readFileFromDisk(
   // Check file size before attempting to read
   try {
     const stats = await fs.stat(validPath);
-    const MAX_SIZE = 100 * 1024; // 100KB limit
+    const MAX_SIZE = 500 * 1024; // 500KB limit
 
     if (stats.size > MAX_SIZE) {
       const message = `File too large (${(stats.size / 1024).toFixed(2)}KB > ${
